@@ -194,7 +194,7 @@ class SkrollSet(val description: String?) {
  * @param executor The [SkrollSetExecutor] instance to use for execution.
  * @return A list of [SkrollRunResult].
  */
-fun SkrollSet.executeAllWith(executor: SkrollSetExecutor = SkrollSetExecutor()): List<SkrollRunResult> {
+suspend fun SkrollSet.executeAllWith(executor: SkrollSetExecutor = SkrollSetExecutor()): List<SkrollRunResult> {
     return executor.executeAll(this)
 }
 
@@ -209,7 +209,7 @@ fun SkrollSet.executeAllWith(executor: SkrollSetExecutor = SkrollSetExecutor()):
  * @param optimizationConfig Configuration for the optimization process.
  * @return A [PromptOptimizationResult] with the best parameter value found.
  */
-fun SkrollSet.optimizeDefaultParameterWith(
+suspend fun SkrollSet.optimizeDefaultParameterWith(
     parameterKeyToOptimize: String,
     initialValue: String,
     evaluator: SkrollSetEvaluator = AveragePrimaryScoreEvaluator(),

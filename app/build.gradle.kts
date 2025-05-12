@@ -14,6 +14,7 @@ dependencies {
   testImplementation("com.google.truth:truth:1.1.3")
   testImplementation("org.junit.jupiter:junit-jupiter-api:5.8.1")
   testImplementation(libs.kotlinxSerialization)
+  testImplementation(libs.kotlinxCoroutinesTest)
   testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.8.1")
 }
 

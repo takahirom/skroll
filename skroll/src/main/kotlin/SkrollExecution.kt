@@ -5,7 +5,7 @@ package io.github.takahirom.skroll
  * Decouples execution logic from the SkrollSet data structure.
  */
 class SkrollSetExecutor(
-    private val curlExecutor: CurlExecutor = DefaultCurlExecutor,
+    private val curlExecutor: CurlExecutor = DefaultCurlExecutor(),
     private val templateResolver: TemplateResolver = SimpleTemplateResolver()
 ) {
     /**
@@ -14,7 +14,7 @@ class SkrollSetExecutor(
      * @param skrollSet The [SkrollSet] containing the definitions to execute.
      * @return A list of [SkrollRunResult] for each executed skroll.
      */
-    fun executeAll(skrollSet: SkrollSet): List<SkrollRunResult> {
+    suspend fun executeAll(skrollSet: SkrollSet): List<SkrollRunResult> {
         println("Executing SkrollSet: ${skrollSet.description ?: "Untitled Skroll Set"}")
         val results = mutableListOf<SkrollRunResult>()
         val defaultParamsMap = skrollSet.defaultParameters.associate { it.key to it.value }

@@ -40,7 +40,7 @@ interface ParameterOptimizer {
      * @param optimizationConfig Configuration for the optimization process.
      * @return A [PromptOptimizationResult].
      */
-    fun optimize(
+    suspend fun optimize(
         skrollSet: SkrollSet,
         parameterKeyToOptimize: String,
         initialValue: String,
@@ -55,7 +55,7 @@ interface ParameterOptimizer {
  * This is a placeholder for more sophisticated strategies (e.g., COPRO-like).
  */
 class SimpleParameterOptimizer : ParameterOptimizer {
-    override fun optimize(
+    override suspend fun optimize(
         skrollSet: SkrollSet,
         parameterKeyToOptimize: String,
         initialValue: String,

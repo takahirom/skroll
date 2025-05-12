@@ -2,6 +2,7 @@ package io.github.takahirom.skroll.example
 
 import com.google.common.truth.Truth.assertThat
 import io.github.takahirom.skroll.* // Import all skroll classes
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Tag
@@ -18,7 +19,7 @@ class UsageExampleTests {
 
   @Test
   @DisplayName("FAQ SkrollSet should meet evaluation criteria")
-  fun faqSkrollSetEvaluation() {
+  fun faqSkrollSetEvaluation() = runBlocking<Unit> {
     val faqSet = skrollSet("FAQ Handling") {
       defaultParameters {
         listOf(
@@ -60,7 +61,7 @@ class UsageExampleTests {
   @DisplayName("Optimize COMMON_SYSTEM_PROMPT for FAQs (refactored)")
   @Tag("optimization-refactored-example")
   @Disabled("Conceptual test for refactored optimization API")
-  fun optimizeFaqSystemPromptRefactored() {
+  fun optimizeFaqSystemPromptRefactored() = runBlocking {
     val faqSetForOptimization = skrollSet("FAQ Prompt Optimization - Refactored") {
       defaultParameters {
         listOf(
@@ -105,7 +106,7 @@ class UsageExampleTests {
  * In a real scenario, this would use ProcessBuilder or a similar mechanism to run curl.
  */
 class DummyCurlExecutor : CurlExecutor {
-  override fun execute(command: String, options: CurlExecutionOptions): ApiResponse {
+  override suspend fun execute(command: String, options: CurlExecutionOptions): ApiResponse {
     println("  [DummyCurlExecutor] Executing: $command (Timeout: ${options.timeout}s, Redirects: ${options.followRedirects}, Insecure: ${options.insecure})")
     // Simulate a successful API call
     val simulatedStatusCode = if (command.contains("error_case")) 400 else 200

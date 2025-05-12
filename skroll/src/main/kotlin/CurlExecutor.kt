@@ -1,5 +1,8 @@
 package io.github.takahirom.skroll
 
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.util.concurrent.TimeUnit
@@ -15,7 +18,7 @@ interface CurlExecutor {
      * @return The ApiResponse from the command execution.
      * @throws Exception if the command execution fails at a low level.
      */
-    fun execute(command: String, options: CurlExecutionOptions): ApiResponse
+    suspend fun execute(command: String, options: CurlExecutionOptions): ApiResponse
 }
 
 /**
@@ -23,7 +26,7 @@ interface CurlExecutor {
  * as system processes.
  * It attempts to capture status code, headers, and body from stdout.
  */
-object DefaultCurlExecutor : CurlExecutor {
+class DefaultCurlExecutor(private val coroutineDispatcher: CoroutineDispatcher = Dispatchers.IO) : CurlExecutor {
 
     /**
      * Executes a given curl command string.
@@ -34,7 +37,13 @@ object DefaultCurlExecutor : CurlExecutor {
      * @param options Options for the command execution.
      * @return An [ApiResponse] containing the status code, body, and headers.
      */
-    override fun execute(command: String, options: CurlExecutionOptions): ApiResponse {
+    override suspend fun execute(command: String, options: CurlExecutionOptions): ApiResponse {
+        return withContext(coroutineDispatcher) {
+            executeCurlCommand(command, options)
+        }
+    }
+
+    private fun executeCurlCommand(command: String, options: CurlExecutionOptions): ApiResponse {
         // Append curl options to get status code and headers along with the body.
         // -s: silent mode
         // -i: include HTTP response headers in the output
