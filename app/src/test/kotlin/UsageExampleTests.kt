@@ -8,9 +8,6 @@ import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 
-// Helper to format Double for readability in output
-fun Double.format(digits: Int) = "%.${digits}f".format(this)
-
 @Tag("skroll-examples")
 class UsageExampleTests {
 

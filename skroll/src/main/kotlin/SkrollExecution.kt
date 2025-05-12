@@ -8,13 +8,15 @@ class SkrollSetExecutor(
     private val curlExecutor: CurlExecutor = DefaultCurlExecutor(),
     private val templateResolver: TemplateResolver = SimpleTemplateResolver()
 ) {
+    class ExecutorOptions(
+    )
     /**
      * Executes all [Skroll]s within the given [SkrollSet].
      *
      * @param skrollSet The [SkrollSet] containing the definitions to execute.
      * @return A list of [SkrollRunResult] for each executed skroll.
      */
-    suspend fun executeAll(skrollSet: SkrollSet): List<SkrollRunResult> {
+    suspend fun executeAll(skrollSet: SkrollSet, executorOptions: ExecutorOptions = ExecutorOptions()): List<SkrollRunResult> {
         println("Executing SkrollSet: ${skrollSet.description ?: "Untitled Skroll Set"}")
         val results = mutableListOf<SkrollRunResult>()
         val defaultParamsMap = skrollSet.defaultParameters.associate { it.key to it.value }
