@@ -28,7 +28,7 @@ class AveragePrimaryScoreEvaluator : SkrollSetEvaluator {
 /**
  * Interface for a parameter optimization strategy.
  */
-interface ParameterOptimizer {
+interface ParameterOptimizer<CONFIG> {
     /**
      * Optimizes a specific parameter within a [SkrollSet].
      *
@@ -46,7 +46,7 @@ interface ParameterOptimizer {
         initialValue: String,
         evaluator: SkrollSetEvaluator,
         skrollSetExecutor: SkrollSetExecutor, // Optimizer needs to run executions
-        optimizationConfig: OptimizationConfig
+        optimizationConfig: CONFIG
     ): PromptOptimizationResult
 }
 
@@ -54,7 +54,16 @@ interface ParameterOptimizer {
  * A simple parameter optimizer implementation.
  * This is a placeholder for more sophisticated strategies (e.g., COPRO-like).
  */
-class SimpleParameterOptimizer : ParameterOptimizer {
+class SimpleParameterOptimizer : ParameterOptimizer<SimpleParameterOptimizer.OptimizationConfig> {
+
+    /**
+     * Configuration for the prompt optimization process.
+     * @property maxIterations The maximum number of iterations the optimizer should run.
+     */
+    data class OptimizationConfig(
+        val maxIterations: Int = 10
+    )
+
     override suspend fun optimize(
         skrollSet: SkrollSet,
         parameterKeyToOptimize: String,

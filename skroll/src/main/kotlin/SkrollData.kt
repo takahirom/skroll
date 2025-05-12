@@ -46,14 +46,6 @@ data class CurlExecutionOptions(
 )
 
 /**
- * Configuration for the prompt optimization process.
- * @property maxIterations The maximum number of iterations the optimizer should run.
- */
-data class OptimizationConfig(
-  val maxIterations: Int = 10
-)
-
-/**
  * Represents the result of a prompt optimization process.
  * @property optimizedParameterKey The name of the parameter that was optimized.
  * @property bestValue The best value found for the optimized parameter.

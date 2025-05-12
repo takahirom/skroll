@@ -209,13 +209,13 @@ suspend fun SkrollSet.executeAllWith(executor: SkrollSetExecutor = SkrollSetExec
  * @param optimizationConfig Configuration for the optimization process.
  * @return A [PromptOptimizationResult] with the best parameter value found.
  */
-suspend fun SkrollSet.optimizeDefaultParameterWith(
+suspend fun SkrollSet.optimizeParameterWithSimpleOptimizer(
     parameterKeyToOptimize: String,
     initialValue: String,
     evaluator: SkrollSetEvaluator = AveragePrimaryScoreEvaluator(),
-    optimizer: ParameterOptimizer = SimpleParameterOptimizer(),
+    optimizer: ParameterOptimizer<SimpleParameterOptimizer.OptimizationConfig> = SimpleParameterOptimizer(),
     skrollSetExecutor: SkrollSetExecutor = SkrollSetExecutor(),
-    optimizationConfig: OptimizationConfig = OptimizationConfig()
+    optimizationConfig: SimpleParameterOptimizer.OptimizationConfig = SimpleParameterOptimizer.OptimizationConfig()
 ): PromptOptimizationResult {
     return optimizer.optimize(
         this,
