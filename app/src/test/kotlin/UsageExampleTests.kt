@@ -1,5 +1,4 @@
-// File: io/github/takahirom/skroll/example/UsageExampleTests.kt
-// Using a sub-package for examples
+package io.github.takahirom.skroll.example
 
 import com.google.common.truth.Truth.assertThat
 import io.github.takahirom.skroll.* // Import all skroll classes
@@ -9,149 +8,121 @@ import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 
 // Helper to format Double for readability in output
-fun Double.format(digits: Int) = "%.${digits}f".format(this)
+ fun Double.format(digits: Int) = "%.${digits}f".format(this)
 
 @Tag("skroll-examples")
 class UsageExampleTests {
 
-    private val testApiKey = System.getenv("SKROLL_TEST_API_KEY") ?: "dummy_test_key_for_examples"
-    private val testApiBaseUrl = System.getenv("SKROLL_TEST_API_URL") ?: "https://dummy-api.skroll.test"
+  private val testApiKey = System.getenv("SKROLL_TEST_API_KEY") ?: "dummy_key"
+  private val testApiBaseUrl = System.getenv("SKROLL_TEST_API_URL") ?: "https://refactored-api.skroll.test"
 
-    @Test
-    @DisplayName("FAQ SkrollSet should meet evaluation criteria")
-    fun faqSkrollSetEvaluation() {
-        val faqSet = skrollSet("FAQ Handling Examples") {
-            // Use a real executor if you want to make actual API calls (configure it)
-            // setCurlExecutor(RealCurlExecutor()) 
-            // For this example, the default DummyCurlExecutor is used.
-
-            defaultParameters {
-                listOf(
-                    Parameter("BASE_URL", testApiBaseUrl),
-                    Parameter("API_TOKEN", testApiKey),
-                    Parameter("COMMON_SYSTEM_PROMPT", "You are an extremely helpful and accurate FAQ bot.")
-                )
-            }
-
-            skroll("Capital City Question") {
-                commandTemplate = """
-                    curl -X POST "{BASE_URL}/faq" \
-                    -H "Authorization: Bearer {API_TOKEN}" \
-                    -H "Content-Type: application/json" \
-                    -d '{
-                        "model": "text-davinci-003", 
-                        "messages": [
-                            {"role": "system", "content": "{COMMON_SYSTEM_PROMPT}"},
-                            {"role": "user", "content": "What is the capital of France?"}
-                        ]
-                    }'
-                """.trimIndent()
-                metrics { response ->
-                    val body = response.body.lowercase()
-                    var score = 0.0
-                    val details = mutableMapOf<String, Any>()
-                    details["response_body_preview"] = body.take(100)
-                    if (response.statusCode == 200) score += 0.5
-                    if (body.contains("paris")) score += 0.5 else details["missing_keyword"] = "paris"
-                    EvaluationOutput(score.coerceIn(0.0, 1.0), details)
-                }
-            }
-
-            skroll("Simple Math Question") {
-                parameters { // Skroll-specific parameters (can override defaults or add new ones)
-                    listOf(
-                        Parameter("MATH_MODEL", "gpt-4") // Using a different model for this skroll
-                    )
-                }
-                commandTemplate = """
-                    curl -X POST "{BASE_URL}/calculate" \
-                    -H "Authorization: Bearer {API_TOKEN}" \
-                    -H "Content-Type: application/json" \
-                    -d '{
-                        "model": "{MATH_MODEL}", 
-                        "messages": [
-                            {"role": "system", "content": "{COMMON_SYSTEM_PROMPT} You are also good at math."},
-                            {"role": "user", "content": "What is 17 + 25?"}
-                        ]
-                    }'
-                """.trimIndent()
-                metrics { response ->
-                    val body = response.body.lowercase()
-                    var score = 0.0
-                    val details = mutableMapOf<String, Any>()
-                    details["response_body_preview"] = body.take(100)
-                    if (response.statusCode == 200) score += 0.5
-                    if (body.contains("42")) score += 0.5 else details["calculation_error_or_missing"] = "42"
-                    EvaluationOutput(score.coerceIn(0.0, 1.0), details)
-                }
-            }
-        }
-
-        val results: List<SkrollRunResult> = faqSet.executeAll()
-
-        assertThat(results).hasSize(2)
-
-        val capitalResult = results.find { it.definitionName == "Capital City Question" }
-        assertThat(capitalResult).isNotNull()
-        assertThat(capitalResult!!.isSuccessful(threshold = 0.9)).isTrue() // Expecting a high score
-        assertThat(capitalResult.evaluation?.details?.get("missing_keyword")).isNull()
-
-        val mathResult = results.find { it.definitionName == "Simple Math Question" }
-        assertThat(mathResult).isNotNull()
-        assertThat(mathResult!!.isSuccessful(threshold = 0.9)).isTrue()
-        assertThat(mathResult.evaluation?.details?.get("calculation_error_or_missing")).isNull()
-
-        // Print results for manual review
-        results.forEach {
-            println("Test: ${it.definitionName}, Score: ${it.evaluation?.primaryScore?.format(2)}, Success: ${it.isSuccessful(0.9)}")
-            it.evaluation?.details?.forEach { (k, v) -> println("  $k: $v")}
-        }
-    }
-
-    @Test
-    @DisplayName("Optimize COMMON_SYSTEM_PROMPT for FAQ SkrollSet")
-    @Tag("optimization-example")
-    @Disabled("This is a conceptual test for optimization API; dummy executor doesn't truly optimize.")
-    fun optimizeFaqSystemPrompt() {
-        val faqSetForOptimization = skrollSet("FAQ Prompt Optimization") {
-            defaultParameters {
-                listOf(
-                    Parameter("BASE_URL", testApiBaseUrl),
-                    Parameter("API_TOKEN", testApiKey),
-                    Parameter("COMMON_SYSTEM_PROMPT", "You answer questions.") // Initial prompt
-                )
-            }
-            skroll("Capital City Question (for opt)") {
-                commandTemplate = "curl {BASE_URL}/faq -d '{\"q\":\"Capital of France?\", \"prompt\":\"{COMMON_SYSTEM_PROMPT}\"}'"
-                metrics { response -> EvaluationOutput(if (response.body.contains("Paris")) 1.0 else 0.1) }
-            }
-            skroll("Math Question (for opt)") {
-                commandTemplate = "curl {BASE_URL}/faq -d '{\"q\":\"17+25?\", \"prompt\":\"{COMMON_SYSTEM_PROMPT}\"}'"
-                metrics { response -> EvaluationOutput(if (response.body.contains("42")) 1.0 else 0.2) }
-            }
-        }
-
-        val optimizationResult = faqSetForOptimization.optimizeDefaultParameter(
-            parameterKeyToOptimize = "COMMON_SYSTEM_PROMPT",
-            initialValue = "Tell me the answer.",
-            evaluationAggregator = { skrollResults ->
-                // Aggregate score: average primary score of all skrolls in the set
-                val averageScore = skrollResults.mapNotNull { it.evaluation?.primaryScore }.average()
-                if (averageScore.isNaN()) 0.0 else averageScore
-            },
-            optimizationConfig = OptimizationConfig(maxIterations = 3) // Keep low for example
+  @Test
+  @DisplayName("FAQ SkrollSet should meet evaluation criteria")
+  fun faqSkrollSetEvaluation() {
+    val faqSet = skrollSet("FAQ Handling") {
+      defaultParameters {
+        listOf(
+          Parameter("BASE_URL", testApiBaseUrl),
+          Parameter("API_TOKEN", testApiKey),
+          Parameter("COMMON_SYSTEM_PROMPT", "You are an extremely helpful and accurate FAQ bot.")
         )
+      }
 
-        println("Optimization Result:")
-        println("  Best Prompt: \"${optimizationResult.bestValue}\"")
-        println("  Best Aggregated Score: ${optimizationResult.bestScore.format(3)}")
-        println("  History:")
-        optimizationResult.history.forEach { (prompt, score) ->
-            println("    \"$prompt\" -> Score: ${score.format(3)}")
+      skroll("Capital City Question") {
+        commandTemplate = "curl {BASE_URL}/faq -d '{\"q\":\"Capital of France?\", \"prompt\":\"{COMMON_SYSTEM_PROMPT}\"}'"
+        metrics { response ->
+          EvaluationOutput(if (response.body.contains("Paris", ignoreCase = true)) 1.0 else 0.1, mapOf("body" to response.body.take(100)))
         }
+      }
 
-        // Assertions on the optimization outcome
-        assertThat(optimizationResult.bestScore).isAtLeast(0.5) // Example threshold for a good optimization
-        // assertThat(optimizationResult.bestValue).contains("accurate") // Example assertion on the prompt content
+      skroll("Simple Math Question") {
+        commandTemplate = "curl {BASE_URL}/calculate -d '{\"q\":\"17+25?\", \"prompt\":\"{COMMON_SYSTEM_PROMPT}\"}'"
+        metrics { response ->
+          EvaluationOutput(if (response.body.contains("42")) 1.0 else 0.2, mapOf("body" to response.body.take(100)))
+        }
+      }
     }
+
+    // Create an executor instance (can be configured with different CurlExecutor or TemplateResolver)
+    val executor = SkrollSetExecutor(
+      curlExecutor = DummyCurlExecutor(),
+    ) // Uses DefaultCurlExecutor and SimpleTemplateResolver by default
+    val results: List<SkrollRunResult> = faqSet.executeAllWith(executor) // Use extension function
+
+    assertThat(results).hasSize(2)
+    results.forEach { result ->
+      println("Test: ${result.definitionName}, Score: ${result.evaluation?.primaryScore}, Success: ${result.isSuccessful(0.9)}")
+      assertThat(result.isSuccessful(threshold = 0.9)).isTrue()
+    }
+  }
+
+  @Test
+  @DisplayName("Optimize COMMON_SYSTEM_PROMPT for FAQs (refactored)")
+  @Tag("optimization-refactored-example")
+  @Disabled("Conceptual test for refactored optimization API")
+  fun optimizeFaqSystemPromptRefactored() {
+    val faqSetForOptimization = skrollSet("FAQ Prompt Optimization - Refactored") {
+      defaultParameters {
+        listOf(
+          Parameter("BASE_URL", testApiBaseUrl),
+          Parameter("API_TOKEN", testApiKey),
+          Parameter("COMMON_SYSTEM_PROMPT", "You answer questions.")
+        )
+      }
+      skroll("Capital City Question (for opt)") {
+        commandTemplate = "curl {BASE_URL}/faq -d '{\"q\":\"Capital of France?\", \"prompt\":\"{COMMON_SYSTEM_PROMPT}\"}'"
+        metrics { response -> EvaluationOutput(if (response.body.contains("Paris", ignoreCase = true)) 1.0 else 0.1) }
+      }
+      skroll("Math Question (for opt)") {
+        commandTemplate = "curl {BASE_URL}/faq -d '{\"q\":\"17+25?\", \"prompt\":\"{COMMON_SYSTEM_PROMPT}\"}'"
+        metrics { response -> EvaluationOutput(if (response.body.contains("42")) 1.0 else 0.2) }
+      }
+    }
+
+    // Use the extension function for optimization
+    val optimizationResult = faqSetForOptimization.optimizeDefaultParameterWith(
+      parameterKeyToOptimize = "COMMON_SYSTEM_PROMPT",
+      initialValue = "Tell me the answer.",
+      // Default evaluator (AveragePrimaryScoreEvaluator) and optimizer (SimpleParameterOptimizer) will be used
+      // Can also pass custom instances:
+      // evaluator = MyCustomEvaluator(),
+      // optimizer = MyAdvancedOptimizer(),
+      // skrollSetExecutor = SkrollSetExecutor(customCurlExecutor),
+      optimizationConfig = OptimizationConfig(maxIterations = 3)
+    )
+
+    println("Optimization Result (Refactored):")
+    println("  Best Prompt: \"${optimizationResult.bestValue}\"")
+    println("  Best Aggregated Score: ${optimizationResult.bestScore}")
+
+    assertThat(optimizationResult.bestScore).isAtLeast(0.5)
+  }
+}
+
+
+/**
+ * A dummy implementation of CurlExecutor for demonstration and testing purposes.
+ * In a real scenario, this would use ProcessBuilder or a similar mechanism to run curl.
+ */
+class DummyCurlExecutor : CurlExecutor {
+  override fun execute(command: String, options: CurlExecutionOptions): ApiResponse {
+    println("  [DummyCurlExecutor] Executing: $command (Timeout: ${options.timeout}s, Redirects: ${options.followRedirects}, Insecure: ${options.insecure})")
+    // Simulate a successful API call
+    val simulatedStatusCode = if (command.contains("error_case")) 400 else 200
+    val simulatedBody = if (simulatedStatusCode == 200) {
+      when {
+        command.lowercase().contains("france") -> "{\"answer\":\"Paris is the capital!\", \"source\":\"knowledge_base\"}"
+        command.lowercase().contains("17") -> "{\"answer\":\"The answer is 42.\", \"certainty\":0.99}"
+        command.lowercase().contains("joke") -> "{\"joke\":\"Why did the scarecrow win an award? Because he was outstanding in his field!\", \"type\":\"pun\"}"
+        else -> "{\"message\":\"Dummy success response for command: ${command.take(50)}...\"}"
+      }
+    } else {
+      "{\"error\":\"Simulated error for command: ${command.take(50)}...\"}"
+    }
+    return ApiResponse(
+      statusCode = simulatedStatusCode,
+      body = simulatedBody,
+      headers = mapOf("Content-Type" to listOf("application/json"), "X-Executed-By" to listOf("DummyCurlExecutor"))
+    )
+  }
 }

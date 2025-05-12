@@ -3,13 +3,9 @@ package io.github.takahirom.skroll
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.util.concurrent.TimeUnit
-import kotlin.sequences.forEach
-
-// File: io/github/takahirom/skroll/CurlExecutor.kt
 
 /**
  * Interface for executing a curl command.
- * This can have different implementations (e.g., actual process execution, fake/mock executor).
  */
 interface CurlExecutor {
     /**
@@ -23,147 +19,150 @@ interface CurlExecutor {
 }
 
 /**
- * A dummy implementation of CurlExecutor for demonstration and testing purposes.
- * In a real scenario, this would use ProcessBuilder or a similar mechanism to run curl.
+ * Default implementation of [CurlExecutor] that executes curl commands
+ * as system processes.
+ * It attempts to capture status code, headers, and body from stdout.
  */
-class DummyCurlExecutor : CurlExecutor {
-    override fun execute(command: String, options: CurlExecutionOptions): ApiResponse {
-        println("  [DummyCurlExecutor] Executing: $command (Timeout: ${options.timeout}s, Redirects: ${options.followRedirects}, Insecure: ${options.insecure})")
-        // Simulate a successful API call
-        val simulatedStatusCode = if (command.contains("error_case")) 400 else 200
-        val simulatedBody = if (simulatedStatusCode == 200) {
-            when {
-                command.lowercase().contains("france") -> "{\"answer\":\"Paris is the capital!\", \"source\":\"knowledge_base\"}"
-                command.lowercase().contains("17") -> "{\"answer\":\"The answer is 42.\", \"certainty\":0.99}"
-                command.lowercase().contains("joke") -> "{\"joke\":\"Why did the scarecrow win an award? Because he was outstanding in his field!\", \"type\":\"pun\"}"
-                else -> "{\"message\":\"Dummy success response for command: ${command.take(50)}...\"}"
-            }
-        } else {
-            "{\"error\":\"Simulated error for command: ${command.take(50)}...\"}"
-        }
-        return ApiResponse(
-            statusCode = simulatedStatusCode,
-            body = simulatedBody,
-            headers = mapOf("Content-Type" to listOf("application/json"), "X-Executed-By" to listOf("DummyCurlExecutor"))
-        )
-    }
-}
-
 object DefaultCurlExecutor : CurlExecutor {
-
-    const val DEFAULT_TIMEOUT_SECONDS = 30L
 
     /**
      * Executes a given curl command string.
      * This version attempts to capture status code, headers, and body.
-     * It uses `curl -s -i -w "\n%{http_code}"` to get all info in stdout.
+     * It uses `curl -s -i -w "\nCURL_CUSTOM_HTTP_STATUS_CODE:%{http_code}"` to get all info in stdout.
      *
      * @param command The complete curl command string to execute.
-     * @param timeoutSeconds Timeout for the command execution.
+     * @param options Options for the command execution.
      * @return An [ApiResponse] containing the status code, body, and headers.
      */
     override fun execute(command: String, options: CurlExecutionOptions): ApiResponse {
-        // We add options to curl to get status code and headers along with the body.
+        // Append curl options to get status code and headers along with the body.
         // -s: silent mode
         // -i: include HTTP response headers in the output
-        // -w "\nHTTP_STATUS_CODE:%{http_code}": write out the HTTP status code after a newline and a specific marker.
-        // The marker helps in parsing. We add the original command to this.
-        // Splitting the command carefully to handle spaces in arguments (e.g., within headers or data).
-        // A more robust solution might involve parsing the command into a list of arguments.
-        // For simplicity, assuming `sh -c` can handle the full command string.
-        // This is common for executing complex shell commands.
-
-        val commandParts = listOf("sh", "-c", "$command -s -i -w \"\\nCURL_CUSTOM_HTTP_STATUS_CODE:%{http_code}\"")
+        // -w "\nCURL_CUSTOM_HTTP_STATUS_CODE:%{http_code}": write out HTTP status code after a newline and marker.
+        // The marker helps in parsing.
+        val fullCommandWithOptions = "$command -s -i -w \"\\nCURL_CUSTOM_HTTP_STATUS_CODE:%{http_code}\""
+        val commandParts = listOf("sh", "-c", fullCommandWithOptions)
 
         val processBuilder = ProcessBuilder(commandParts)
-        val process = processBuilder.start()
+        val process = try {
+            processBuilder.start()
+        } catch (e: Exception) {
+            // Failed to start the process (e.g., curl not found)
+            return ApiResponse(-1, "Failed to start curl process: ${e.message}", emptyMap())
+        }
+
 
         val stdoutReader = BufferedReader(InputStreamReader(process.inputStream))
         val stderrReader = BufferedReader(InputStreamReader(process.errorStream))
 
         val outputLines = mutableListOf<String>()
-        stdoutReader.useLines { lines -> lines.forEach { outputLines.add(it) } }
+        // It's important to read stdout fully before stderr in some cases, or use separate threads.
+        // For simplicity, reading stdout first.
+        try {
+            stdoutReader.useLines { lines -> lines.forEach { outputLines.add(it) } }
+        } catch (e: Exception) {
+            // Error reading stdout
+            // This block might be too late if waitFor already timed out.
+        }
 
-        val errorOutput = stderrReader.use { it.readText() }
+        val errorOutput = try {
+            stderrReader.use { it.readText() }
+        } catch (e: Exception) {
+            "" // Error reading stderr
+        }
 
-        val exited = process.waitFor(options.timeout.inWholeSeconds, TimeUnit.SECONDS)
+
+        val exited = try {
+            process.waitFor(options.timeout.inWholeSeconds, TimeUnit.SECONDS)
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt() // Restore interruption status
+            process.destroyForcibly()
+            return ApiResponse(-1, "Curl command timed out (interrupted) after ${options.timeout.inWholeSeconds}s. Stderr: $errorOutput", emptyMap())
+        }
+
+
         if (!exited) {
             process.destroyForcibly()
-            return ApiResponse(
-                -1,
-                "",
-                emptyMap(),
-            )
+            return ApiResponse(-1, "Curl command timed out after ${options.timeout.inWholeSeconds}s. Stderr: $errorOutput", emptyMap())
         }
 
-        if (process.exitValue() != 0 && errorOutput.isNotBlank()) {
-            // Non-zero exit code from curl itself, likely an issue with the command or network
-            // Return early with error if curl command itself failed (not HTTP error)
+        // Check curl's own exit code. A non-zero exit code often indicates a curl-specific error
+        // (e.g., network issue before HTTP transaction, malformed URL, option error).
+        if (process.exitValue() != 0) {
+            // Even if curl fails, it might have printed something to stdout (like headers if -i was processed before error)
+            // or an error message. We still try to parse what we got.
+            // The status code from parseCurlOutput might still be -1 if no HTTP transaction occurred.
+            val partiallyParsedResponse = parseCurlOutput(outputLines)
             return ApiResponse(
-                statusCode = -1, // Indicate curl execution failure rather than HTTP status
-                body = outputLines.joinToString("\n"),
-                headers = emptyMap(),
+                // If parseCurlOutput found an HTTP status, use it, otherwise indicate curl error with -1 or similar.
+                statusCode = if (partiallyParsedResponse.statusCode != -1) partiallyParsedResponse.statusCode else -process.exitValue(), // Or a specific negative code
+                body = if (partiallyParsedResponse.body.isNotBlank()) partiallyParsedResponse.body else errorOutput, // Prioritize error output if body is empty
+                headers = partiallyParsedResponse.headers
             )
         }
-
-        return parseCurlOutput(outputLines, errorOutput)
+        return parseCurlOutput(outputLines)
     }
 
     /**
      * Parses the combined output from curl (-i -w "...") to extract headers, body, and status code.
      */
-    private fun parseCurlOutput(outputLines: List<String>, stderr: String?): ApiResponse {
+    private fun parseCurlOutput(outputLines: List<String>): ApiResponse {
         var statusCode = -1
         val headers = mutableMapOf<String, MutableList<String>>()
         val bodyLines = mutableListOf<String>()
         var parsingHeaders = true
+        var httpStatusLineProcessed = false
 
-        // Find the status code marker first
-        val statusLineIndex = outputLines.indexOfLast { it.startsWith("CURL_CUSTOM_HTTP_STATUS_CODE:") }
-        if (statusLineIndex != -1) {
-            statusCode =
-                outputLines[statusLineIndex].substringAfter("CURL_CUSTOM_HTTP_STATUS_CODE:").trim().toIntOrNull() ?: -1
+        // Find the status code marker from -w option (most reliable for HTTP status)
+        val statusMarkerLineIndex = outputLines.indexOfLast { it.startsWith("CURL_CUSTOM_HTTP_STATUS_CODE:") }
+        if (statusMarkerLineIndex != -1) {
+            statusCode = outputLines[statusMarkerLineIndex].substringAfter("CURL_CUSTOM_HTTP_STATUS_CODE:").trim().toIntOrNull() ?: -1
         }
 
-        val contentLines = if (statusLineIndex != -1) outputLines.subList(0, statusLineIndex) else outputLines
-
-        // HTTP Status line (e.g., HTTP/1.1 200 OK) is the first line of headers if present
-        if (contentLines.isNotEmpty() && contentLines[0].matches(Regex("^HTTP/[\\d.]+ \\d+ .*"))) {
-            // statusCode from HTTP line can be a fallback or cross-check
-            if (statusCode == -1) { // If not found from -w option
-                statusCode = contentLines[0].split(" ")[1].toIntOrNull() ?: -1
-            }
-        }
-
+        // Determine the lines that contain headers and body (excluding the status marker line)
+        val contentLines = if (statusMarkerLineIndex != -1) outputLines.subList(0, statusMarkerLineIndex) else outputLines
 
         for (line in contentLines) {
             if (parsingHeaders) {
+                // Check for HTTP status line (e.g., "HTTP/1.1 200 OK")
+                // This might appear multiple times if there are redirects and -L is used,
+                // curl -i shows headers for all responses in a redirect chain.
+                // We are interested in the *last* set of headers and body.
+                // This simple parser takes the first set. A more robust one would handle multiple sets.
+                if (line.matches(Regex("^HTTP/[\\d.]+ \\d+ .*$"))) {
+                    if (!httpStatusLineProcessed || statusCode == -1) { // Prioritize -w, but take first HTTP status if -w fails
+                        val parts = line.split(" ", limit = 3)
+                        if (parts.size > 1) {
+                            if(statusCode == -1) statusCode = parts[1].toIntOrNull() ?: -1
+                        }
+                    }
+                    httpStatusLineProcessed = true
+                    continue // Skip the HTTP status line from header processing
+                }
+
                 if (line.isBlank()) { // Blank line separates headers from body
-                    parsingHeaders = false
+                    if(httpStatusLineProcessed){ // only switch to body if we've actually seen HTTP headers
+                        parsingHeaders = false
+                    } else {
+                        // This might be a blank line before any headers (e.g. if curl failed early)
+                        // or part of a multi-part response. For simplicity, assume first blank line after headers is separator.
+                    }
                     continue
                 }
-                if (line.matches(Regex("^HTTP/[\\d.]+ \\d+ .*"))) { // Skip the HTTP status line itself
-                    continue
-                }
-                val parts = line.split(":", limit = 2)
-                if (parts.size == 2) {
-                    val headerName = parts[0].trim()
-                    val headerValue = parts[1].trim()
-                    headers.computeIfAbsent(headerName) { mutableListOf() }.add(headerValue)
+                // Parse header lines
+                val headerParts = line.split(":", limit = 2)
+                if (headerParts.size == 2) {
+                    val headerName = headerParts[0].trim()
+                    val headerValue = headerParts[1].trim()
+                    headers.computeIfAbsent(headerName.lowercase()) { mutableListOf() }.add(headerValue) // Store lowercase for consistency
                 } else {
-                    // Handle malformed headers or log them if necessary
+                    // Potentially malformed header or continuation line, ignore for simplicity
                 }
             } else {
+                // Once headers are done, the rest is body
                 bodyLines.add(line)
             }
         }
-
-        // If status code wasn't found via -w (e.g. curl couldn't connect), but we got an HTTP status line
-        if (statusCode == -1 && contentLines.isNotEmpty() && contentLines[0].matches(Regex("^HTTP/[\\d.]+ \\d+ .*"))) {
-            statusCode = contentLines[0].split(" ")[1].toIntOrNull() ?: -1
-        }
-
-
-        return ApiResponse(statusCode, bodyLines.joinToString("\n"), headers)
+        return ApiResponse(statusCode, bodyLines.joinToString("\n"), headers.toMap())
     }
 }
