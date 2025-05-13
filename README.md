@@ -2,14 +2,21 @@
 
 **Skroll** is a Kotlin-based library for defining, executing, and evaluating tests against APIs, particularly those involving Large Language Models (LLMs). It emphasizes `curl` command fidelity to ensure your tests accurately reflect real-world API interactions, helping you prevent regressions and optimize parameters effectively.
 
-*(Consider adding badges here: version, license, build status, etc. )*
+![banner](https://github.com/user-attachments/assets/58c70af7-ad7c-4c03-80d0-202563474ea2)
 
-## The Problem: Ensuring API & LLM Reliability
+## The Problem: Ensuring API & LLM Reliability and Instruction Fidelity
 
-Interacting with APIs, especially dynamic ones like LLMs where prompt engineering is crucial, presents unique challenges:
-*   **API Brittleness**: Small changes in requests or API behavior can lead to unexpected responses.
-*   **Prompt Sensitivity**: LLM responses can vary significantly with slight alterations in prompts or parameters.
-*   **Testing Fidelity**: Traditional tests might not perfectly replicate the exact `curl` commands your application sends, including specific headers or complex JSON payloads, reducing confidence in test outcomes.
+Interacting with APIs, and particularly with Large Language Models (LLMs), presents unique and evolving challenges that can undermine reliability:
+
+*   **General API Brittleness**: All APIs can be sensitive. Small, undocumented changes in request structure or unexpected API behavior can lead to silent failures or incorrect data, which are hard to catch without dedicated tests.
+*   **LLM Prompt Complexity and "Instruction Creep"**:
+    *   As you refine LLM interactions, prompts often grow in complexity. You might add multiple "do not do X," "always format Y this way," or "ensure Z" instructions.
+    *   LLMs can struggle to maintain context and adhere to all constraints in very long or overly detailed prompts. This can lead to the model "forgetting" or ignoring earlier instructions, especially negative constraints (e.g., "do not speak as the user").
+    *   The sheer volume of information or the number of distinct instructions can dilute the model's focus, causing it to overlook critical parts of your prompt.
+*   **Context Window Limitations**: LLMs have finite context windows. As prompts, chat history, or retrieved documents grow, they might exceed these limits, forcing truncation or causing the model to lose track of initial instructions or crucial context.
+*   **Testing Fidelity Gap**: Manually testing with `curl` in a terminal is common during debugging. However, translating these ad-hoc tests into automated, reliable regression tests that *exactly* replicate the problematic `curl` command (with all its headers, nuances, and payload intricacies) can be difficult. Without this fidelity, your tests might not catch the real issue.
+
+These challenges mean that what worked yesterday might silently break today, and fine-tuning prompts to achieve desired behavior can feel like a constant battle against regression. You need a way to lock down expected behavior for specific, complex API calls and LLM prompts.
 
 ## The Skroll Solution: Curl-Centric Testing & Optimization
 
@@ -87,9 +94,7 @@ class MyApiTests {
 }
 ```
 
-## Installation
-
-*(Add your installation instructions here, e.g., for Gradle/Maven)*
+## Installation (Comming Soon)
 
 **Gradle (Kotlin DSL):**
 ```kotlin
@@ -217,8 +222,6 @@ println("  Best Score: ${optimizationResult.bestScore}")
 *   **`initialValue`**: The starting value for the parameter.
 *   **`optimizationConfig`**: Configuration like `maxIterations`.
 *   Refer to the documentation for advanced options like custom evaluators and optimizers.
-
-*(The "Usage Example" section from your original README, which used a `DummyCurlExecutor`, might be better suited for a dedicated "Examples" directory or documentation page if it's extensive. The "Quick Start" should cover the most common, simple use case.)*
 
 ## Advanced: Custom Executors & Resolvers
 For specialized scenarios, Skroll allows you to provide your own implementations:
