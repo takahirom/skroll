@@ -45,7 +45,7 @@ Skroll is designed to fit naturally into your development and debugging process:
 
 ## Quick Start Guide
 
-This example demonstrates defining and executing an API test using Skroll's `passFailMetrics` for straightforward assertion-based testing.
+This example demonstrates defining and executing an API test against the OpenAI Chat Completion endpoint using Skroll's `passFailMetrics` for straightforward assertion-based testing.
 
 ```kotlin
 import io.github.takahirom.skroll.*       // Core Skroll imports
@@ -53,32 +53,59 @@ import kotlinx.coroutines.runBlocking     // For running suspend functions
 import org.junit.jupiter.api.Test        // Example with JUnit 5
 import org.junit.jupiter.api.DisplayName // Example with JUnit 5
 import org.assertj.core.api.Assertions.assertThat // Example with AssertJ
+import kotlin.time.Duration.Companion.seconds // For timeout
 
-class MyApiTests {
+// Reminder: Manage your API keys securely. Do not commit them to your repository.
+// Consider using environment variables or a secure secrets manager.
+
+class OpenAIChatCompletionTests {
 
     @Test
-    @DisplayName("Fetch To-Do item and verify content")
-    fun fetchToDoItemTest() = runBlocking {
-        val todoApiTestSet = skrollSet("JSONPlaceholder ToDo API Test") {
+    @DisplayName("Basic OpenAI Chat Completion Test")
+    fun basicOpenAIChatCompletionTest() = runBlocking {
+        val openAIApiTestSet = skrollSet("OpenAI Chat Completion API Test") {
             defaultParameters {
                 listOf(
-                    Parameter("BASE_URL", "https://jsonplaceholder.typicode.com")
+                    // IMPORTANT: Replace "YOUR_OPENAI_API_KEY" with your actual key,
+                    // preferably loaded from an environment variable or secure config.
+                    Parameter("OPENAI_API_KEY", System.getenv("OPENAI_API_KEY") ?: "YOUR_OPENAI_API_KEY_FALLBACK"),
+                    Parameter("OPENAI_BASE_URL", "https://api.openai.com")
                 )
             }
 
-            skroll("Fetch a single Todo") {
-                commandTemplate = "curl {BASE_URL}/todos/1"
+            skroll("Ask for a simple API explanation") {
+                // Note the escaped quotes within the JSON payload string
+                commandTemplate = """
+                    curl {OPENAI_BASE_URL}/v1/chat/completions \
+                    -H "Content-Type: application/json" \
+                    -H "Authorization: Bearer {OPENAI_API_KEY}" \
+                    -d '{
+                        "model": "gpt-4.1",
+                        "messages": [{"role": "user", "content": "{PROMPT_CONTENT}"}],
+                        "temperature": 0.1,
+                        "max_tokens": 60
+                    }'
+                """.trimIndent().replace("\n", " ") // Ensure it's a single line command
+
+                parameters {
+                    listOf(
+                        Parameter("PROMPT_CONTENT", "Explain what an API is in one short sentence.")
+                    )
+                }
 
                 passFailMetrics { response ->
                     assertThat(response.statusCode).isEqualTo(200)
-                    assertThat(response.body).contains("delectus aut autem")
-                    assertThat(response.headers["Content-Type"]).contains("application/json")
+                    assertThat(response.body).contains("\"object\":\"chat.completion\"")
+                    assertThat(response.body).contains("\"role\":\"assistant\"")
+                    // A more specific check based on the prompt:
+                    assertThat(response.body.lowercase()).contains("application programming interface")
                 }
-                // curlOptions { timeout = 10.seconds } // Optional
+                
+                curlOptions { timeout = 30.seconds } // Optional: Set a timeout
             }
         }
 
-        val results = todoApiTestSet.executeAll()
+        val results = openAIApiTestSet.executeAll()
 
         results.forEach { result ->
             println(
@@ -86,8 +113,15 @@ class MyApiTests {
                 "Score: ${result.evaluation?.primaryScore}, " +
                 "Success (threshold 0.9): ${result.isSuccessful(0.9)}"
             )
+            if (result.error != null) {
+                println("  Error: ${result.error.message}")
+                result.error.cause?.printStackTrace() // Print stack trace for more details
+            }
+            // Optionally print response body for debugging, be mindful of large responses
+            // println("  Response Body: ${result.apiResponse?.body?.take(500)}") 
+
             assertThat(result.isSuccessful(threshold = 0.9))
-                .`as`("Test '${result.definitionName}' should be successful")
+                .`as`("Test '${result.definitionName}' should be successful. Response body: ${result.apiResponse?.body}")
                 .isTrue()
         }
     }
