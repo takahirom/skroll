@@ -23,7 +23,7 @@ These challenges mean that what worked yesterday might silently break today, and
 Skroll addresses these challenges by providing:
 *   **High-Fidelity `curl` Templates**: Define tests using `curl` commands, ensuring what you test is what you run.
 *   **Rich, Flexible Metrics**: Go beyond simple pass/fail. Evaluate responses with custom scoring and detailed output capture.
-*   **Parameter Optimization**: Systematically tune parameters (like LLM prompts) to find optimal values while regression tests ensure stability.
+*   **Parameter Optimization(Work in progress)**: Systematically tune parameters (like LLM prompts) to find optimal values while regression tests ensure stability.
 
 ## Why Skroll?
 
@@ -31,7 +31,7 @@ Skroll addresses these challenges by providing:
 *   **Prevent Regressions**: Easily create tests from observed `curl` commands to catch API behavior changes and prompt-related issues early. Your problematic API calls become your regression shield.
 *   **Developer-Friendly DSL**: An intuitive and expressive Kotlin-based DSL for defining test sets and individual test cases.
 *   **Flexible & Rich Metrics**: Define custom, multi-faceted evaluation logic. Score responses based on various criteria and capture detailed output beyond a simple pass/fail.
-*   **Built-in Optimization**: Systematically find better-performing prompt variations or other API parameters.
+*   **Built-in Optimization(Work in progress)**: Systematically find better-performing prompt variations or other API parameters.
 
 ## Core Workflow: From Problem to Regression Prevention (and Optimization)
 
@@ -200,7 +200,7 @@ results.forEach { result ->
 *   The `isSuccessful(threshold: Double)` helper on `SkrollResult` checks if the score meets the threshold and no errors occurred.
 *   Integrate these executions into your testing framework (e.g., JUnit, Kotest ) and use assertion libraries to verify results.
 
-## Parameter Optimization
+## Parameter Optimization(Work in progress)
 
 Skroll can help optimize a parameter (e.g., an LLM system prompt) within a `SkrollSet` to find a value that maximizes an aggregated score across all tests in that set.
 
