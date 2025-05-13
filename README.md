@@ -1,77 +1,187 @@
-## Skroll: Test and Optimize Your APIs with Curl Fidelity
+# Skroll: Test and Optimize Your API/LLM Calls with Curl Fidelity
 
-**Skroll** is a Kotlin-based library designed for defining, executing, and evaluating tests against APIs, particularly those involving Large Language Models (LLMs). It emphasizes `curl` command fidelity to ensure your tests accurately reflect real-world API interactions.
+**Skroll** is a Kotlin-based library for defining, executing, and evaluating tests against APIs, particularly those involving Large Language Models (LLMs). It emphasizes `curl` command fidelity to ensure your tests accurately reflect real-world API interactions, helping you prevent regressions and optimize parameters effectively.
 
-## The Challenge: API Brittleness and Testing Fidelity
+*(Consider adding badges here: version, license, build status, etc. )*
 
-When interacting with complex APIs, especially LLMs where prompt engineering is key, ensuring consistent behavior and preventing regressions can be challenging. Prompts or API request structures might evolve, leading to unexpected changes in responses. Traditional testing methods might not always capture the exact nuances of the API calls your application makes, including specific headers or intricate JSON payloads. This discrepancy can reduce confidence in test results.
+## The Problem: Ensuring API & LLM Reliability
 
-## The Skroll Solution: Curl-Centric Testing with Rich Metrics
+Interacting with APIs, especially dynamic ones like LLMs where prompt engineering is crucial, presents unique challenges:
+*   **API Brittleness**: Small changes in requests or API behavior can lead to unexpected responses.
+*   **Prompt Sensitivity**: LLM responses can vary significantly with slight alterations in prompts or parameters.
+*   **Testing Fidelity**: Traditional tests might not perfectly replicate the exact `curl` commands your application sends, including specific headers or complex JSON payloads, reducing confidence in test outcomes.
 
-Skroll addresses these challenges by:
+## The Skroll Solution: Curl-Centric Testing & Optimization
 
-1.  **Defining Tests with `curl` Templates**: You define your API interactions using `curl` command templates. This ensures high fidelity between your tests and the actual requests your application would send.
-2.  **Evaluating with Rich Metrics**: Instead of simple pass/fail assertions, Skroll allows you to define custom `metrics` functions that return an `EvaluationOutput`. This object includes a `primaryScore` (a `Double`) and a `details` map (`Map`), enabling nuanced and multi-faceted evaluation of API responses.
+Skroll addresses these challenges by providing:
+*   **High-Fidelity `curl` Templates**: Define tests using `curl` commands, ensuring what you test is what you run.
+*   **Rich, Flexible Metrics**: Go beyond simple pass/fail. Evaluate responses with custom scoring and detailed output capture.
+*   **Parameter Optimization**: Systematically tune parameters (like LLM prompts) to find optimal values while regression tests ensure stability.
 
-This approach provides a robust way to test API behavior, catch regressions early, and iterate on designs (like LLM prompts) with greater confidence.
+## Why Skroll?
+
+*   **High Fidelity**: `curl` templates ensure tests accurately mirror real-world API calls, vital for complex requests (e.g., intricate JSON payloads, LLM function calling).
+*   **Prevent Regressions**: Easily create tests from observed `curl` commands to catch API behavior changes and prompt-related issues early. Your problematic API calls become your regression shield.
+*   **Developer-Friendly DSL**: An intuitive and expressive Kotlin-based DSL for defining test sets and individual test cases.
+*   **Flexible & Rich Metrics**: Define custom, multi-faceted evaluation logic. Score responses based on various criteria and capture detailed output beyond a simple pass/fail.
+*   **Built-in Optimization**: Systematically find better-performing prompt variations or other API parameters.
+
+## Core Workflow: From Problem to Regression Prevention (and Optimization)
+
+Skroll is designed to fit naturally into your development and debugging process:
+
+1.  **Identify an Issue**: You notice an unexpected behavior or bug in your application's interaction with an API (e.g., an LLM providing a suboptimal response).
+2.  **Capture the `curl` Command**: Many applications or proxy tools can log the exact `curl` command that led to the problematic behavior. This command is your starting point.
+3.  **Create a Skroll Test**: Embed this `curl` command directly into a Skroll test case. Define metrics (or use `passFailMetrics`) to verify the expected outcome or capture the undesirable one.
+4.  **Prevent Regression**: This test now acts as a safeguard. As you fix the underlying issue or evolve your API/prompts, this Skroll test ensures the specific problem doesn't reappear.
+5.  **Optimize with Confidence**: With a suite of regression tests in place, you can leverage Skroll's optimization features to improve prompts or other parameters, knowing that your existing functionality is protected.
+
+## Quick Start Guide
+
+This example demonstrates defining and executing an API test using Skroll's `passFailMetrics` for straightforward assertion-based testing.
+
+```kotlin
+import io.github.takahirom.skroll.*       // Core Skroll imports
+import kotlinx.coroutines.runBlocking     // For running suspend functions
+import org.junit.jupiter.api.Test        // Example with JUnit 5
+import org.junit.jupiter.api.DisplayName // Example with JUnit 5
+import org.assertj.core.api.Assertions.assertThat // Example with AssertJ
+
+class MyApiTests {
+
+    @Test
+    @DisplayName("Fetch To-Do item and verify content")
+    fun fetchToDoItemTest() = runBlocking {
+        val todoApiTestSet = skrollSet("JSONPlaceholder ToDo API Test") {
+            defaultParameters {
+                listOf(
+                    Parameter("BASE_URL", "https://jsonplaceholder.typicode.com")
+                )
+            }
+
+            skroll("Fetch a single Todo") {
+                commandTemplate = "curl {BASE_URL}/todos/1"
+
+                passFailMetrics { response ->
+                    assertThat(response.statusCode).isEqualTo(200)
+                    assertThat(response.body).contains("delectus aut autem")
+                    assertThat(response.headers["Content-Type"]).contains("application/json")
+                }
+                // curlOptions { timeout = 10.seconds } // Optional
+            }
+        }
+
+        val results = todoApiTestSet.executeAll()
+
+        results.forEach { result ->
+            println(
+                "Test: ${result.definitionName}, " +
+                "Score: ${result.evaluation?.primaryScore}, " +
+                "Success (threshold 0.9): ${result.isSuccessful(0.9)}"
+            )
+            assertThat(result.isSuccessful(threshold = 0.9))
+                .`as`("Test '${result.definitionName}' should be successful")
+                .isTrue()
+        }
+    }
+}
+```
+
+## Installation
+
+*(Add your installation instructions here, e.g., for Gradle/Maven)*
+
+**Gradle (Kotlin DSL):**
+```kotlin
+// build.gradle.kts
+dependencies {
+    testImplementation("io.github.takahirom.skroll:skroll:")
+}
+```
+
+**Maven:**
+```xml
+
+
+    io.github.takahirom.skroll
+    skroll
+    latest_version
+    test
+
+```
+Replace `` with the actual latest version of Skroll.
 
 ## Core Concepts & DSL
 
-Skroll provides an intuitive Kotlin-based DSL to define your tests:
+Skroll uses a Kotlin-based DSL to define tests.
 
-*   **`skrollSet { ... }`**: The top-level block to group related test definitions (`skroll`s). You can provide an optional `description` for the set.
-    *   **`defaultParameters { ... }`**: Within a `skrollSet`, you can define a list of common `Parameter`s (e.g., base URLs, API tokens, default prompts). These are available to all `skroll` definitions within the set.
-        ```kotlin
-        defaultParameters {
-            listOf(
-                Parameter("BASE_URL", "https://api.example.com"),
-                Parameter("API_TOKEN", "your_secret_key")
-            )
-        }
-        ```
+**`skrollSet("Set Description") { ... }`**
+The top-level block to group related test definitions (`skroll`s).
+*   **`defaultParameters { listOf(Parameter("KEY", "VALUE")) }`**:
+    Define common parameters (e.g., base URLs, API tokens) shared by all `skroll`s within this set.
+    ```kotlin
+    defaultParameters {
+        listOf(
+            Parameter("BASE_URL", "https://api.example.com"),
+            Parameter("API_TOKEN", "your_secret_key")
+        )
+    }
+    ```
 
-*   **`skroll("Test Case Name") { ... }`**: Defines an individual test case (a `Skroll` definition).
-    *   **`commandTemplate = "..."`**: The `curl` command string with placeholders (e.g., `{API_TOKEN}`, `{USER_INPUT}`). Placeholders are resolved using parameters.
-        ```kotlin
-        commandTemplate = "curl {BASE_URL}/chat -d '{\"query\":\"{USER_INPUT}\"}'"
-        ```
-    *   **`parameters { ... }`**: (Optional) Define a list of `Parameter`s specific to this `skroll` definition. These can override or add to the `defaultParameters` from the parent `SkrollSet`.
-        ```kotlin
-        parameters {
-            listOf(Parameter("USER_INPUT", "Hello there!"))
-        }
-        ```
-    *   **`metrics { apiResponse -> ... }`**: A lambda function that takes an `ApiResponse` (containing `statusCode`, `body`, `headers`) and returns an `EvaluationOutput`. This is where you define your custom logic to score the response and extract relevant details.
-        ```kotlin
-        metrics { response ->
-            val score = if (response.body.contains("expected_text")) 1.0 else 0.0
-            EvaluationOutput(score, mapOf("body_preview" to response.body.take(100)))
-        }
-        ```
-    *   **`curlOptions { ... }`**: (Optional) Configure `CurlExecutionOptions` for this specific skroll, such as `timeout`, `followRedirects`, and `insecure` (for allowing insecure server connections, like `curl -k`).
-        ```kotlin
-        curlOptions {
-            timeout = 60.seconds // kotlin.time.Duration
-            followRedirects = false
-            insecure = true
-        }
-        ```
+**`skroll("Test Case Name") { ... }`**
+Defines an individual test case.
+*   **`commandTemplate = "curl command with {PLACEHOLDERS}"`**:
+    The `curl` command string. Placeholders are resolved from parameters.
+    ```kotlin
+    commandTemplate = "curl {BASE_URL}/chat -d '{\"query\":\"{USER_INPUT}\"}'"
+    ```
+*   **`parameters { listOf(Parameter("KEY", "VALUE")) }`**: (Optional)
+    Define parameters specific to this `skroll`, overriding or adding to `defaultParameters`.
+    ```kotlin
+    parameters {
+        listOf(Parameter("USER_INPUT", "Tell me a joke."))
+    }
+    ```
+*   **`passFailMetrics { apiResponse -> ... }`**:
+    For tests where outcome is binary (pass/fail). Use assertion libraries inside. If assertions pass, score is `1.0`; if any assertion throws an exception, score is `0.0`.
+    ```kotlin
+    passFailMetrics { response ->
+        assertThat(response.statusCode).isEqualTo(200)
+        // Further assertions
+    }
+    ```
+*   **`metrics { apiResponse -> EvaluationOutput(score, detailsMap) }`**:
+    For custom scoring logic. Return an `EvaluationOutput` with a `primaryScore` (Double) and a `details` map.
+    ```kotlin
+    metrics { response ->
+        val score = if (response.body.contains("expected_text")) 1.0 else 0.0
+        val details = mapOf("body_preview" to response.body.take(100))
+        EvaluationOutput(primaryScore = score, details = details)
+    }
+    ```
+*   **`curlOptions { ... }`**: (Optional)
+    Configure `CurlExecutionOptions` like `timeout`, `followRedirects`, `insecure`.
+    ```kotlin
+    curlOptions {
+        timeout = 30.seconds // Using kotlin.time.Duration
+        followRedirects = true
+    }
+    ```
 
-## Execution
+## Executing Tests
 
-To run your defined skrolls, you use the `executeAllWith()` extension function on a `SkrollSet` instance.
+Use the `executeAll()` extension function on a `SkrollSet` instance. (Note: `executeAllWith` is available for more advanced executor customization).
 
 ```kotlin
-val mySkrollSet = skrollSet("My API Tests") { /* ... definitions ... */ }
+val mySkrollSet = skrollSet("My API Tests") { /* ... skroll definitions ... */ }
 
-// Execute all skrolls
-val results: List = mySkrollSet.executeAllWith()
-// For custom execution (e.g., with a dummy executor for local tests):
-// val customExecutor = SkrollSetExecutor(curlExecutor = MyDummyCurlExecutor())
-// val results: List = mySkrollSet.executeAllWith(customExecutor)
+// Execute all skrolls using the default curl executor
+val results: List = mySkrollSet.executeAll()
 
 results.forEach { result ->
-    println("Skroll: ${result.definitionName}, Score: ${result.evaluation?.primaryScore}, Success: ${result.isSuccessful(0.9)}")
+    println("Skroll: ${result.definitionName}")
+    println("  Score: ${result.evaluation?.primaryScore}")
+    println("  Success (threshold 0.9): ${result.isSuccessful(0.9)}")
     if (result.error != null) {
         println("  Error: ${result.error.message}")
     }
@@ -80,126 +190,39 @@ results.forEach { result ->
     }
 }
 ```
-
-*   `executeAllWith()` returns a list of `SkrollRunResult` objects.
-*   Each `SkrollRunResult` contains the `definitionName`, the `evaluation` output (`EvaluationOutput?`), the raw `apiResponse` (`ApiResponse?`), and any `error` (`Throwable?`) that occurred.
-*   The `isSuccessful(threshold: Double)` helper function on `SkrollRunResult` can be used to quickly check if a skroll met a certain score threshold and had no errors.
-*   By default, `executeAllWith()` uses a `SkrollSetExecutor` configured with `DefaultCurlExecutor` (which runs actual curl commands) and `SimpleTemplateResolver`. You can provide your own `SkrollSetExecutor` instance if you need custom `CurlExecutor` or `TemplateResolver` implementations.
+*   `executeAll()` returns a list of `SkrollResult` objects.
+*   Each `SkrollResult` contains the test's `definitionName`, the `evaluation` output, the raw `apiResponse`, and any `error`.
+*   The `isSuccessful(threshold: Double)` helper on `SkrollResult` checks if the score meets the threshold and no errors occurred.
+*   Integrate these executions into your testing framework (e.g., JUnit, Kotest ) and use assertion libraries to verify results.
 
 ## Parameter Optimization
 
-Skroll supports optimizing a default parameter within a `SkrollSet` to find a value that maximizes an aggregated score across all skrolls. This is particularly useful for tuning prompts for LLMs.
+Skroll can help optimize a parameter (e.g., an LLM system prompt) within a `SkrollSet` to find a value that maximizes an aggregated score across all tests in that set.
 
-Use the `optimizeDefaultParameterWith()` extension function:
-
+Use the `optimizeDefaultParameter()` extension function:
 ```kotlin
-val optimizationResult: PromptOptimizationResult = mySkrollSet.optimizeDefaultParameterWith(
+val optimizationResult: OptimizationOutcome = mySkrollSet.optimizeDefaultParameter(
     parameterKeyToOptimize = "COMMON_SYSTEM_PROMPT",
     initialValue = "You are a helpful assistant.",
-    optimizationConfig = OptimizationConfig(maxIterations = 5)
+    optimizationConfig = OptimizationConfig(maxIterations = 10)
     // Optionally provide custom evaluator, optimizer, or skrollSetExecutor
 )
 
 println("Optimization Complete:")
-println("  Best Prompt: \"${optimizationResult.bestValue}\"")
+println("  Best Value for '{optimizationResult.parameterKey}': \"${optimizationResult.bestValue}\"")
 println("  Best Score: ${optimizationResult.bestScore}")
+// optimizationResult.history provides details of each iteration
 ```
-
 *   **`parameterKeyToOptimize`**: The key of the `defaultParameters` entry to optimize.
 *   **`initialValue`**: The starting value for the parameter.
-*   **`evaluator`**: A `SkrollSetEvaluator` (defaults to `AveragePrimaryScoreEvaluator`) that defines how to calculate an aggregate score from a list of `SkrollRunResult`s.
-*   **`optimizer`**: A `ParameterOptimizer` (defaults to `SimpleParameterOptimizer`) that implements the strategy for generating and testing new parameter values.
-*   **`skrollSetExecutor`**: The executor to run skrolls during each optimization iteration.
 *   **`optimizationConfig`**: Configuration like `maxIterations`.
-*   The function returns a `PromptOptimizationResult` containing the `bestValue`, `bestScore`, and history.
+*   Refer to the documentation for advanced options like custom evaluators and optimizers.
 
-## Why Skroll?
+*(The "Usage Example" section from your original README, which used a `DummyCurlExecutor`, might be better suited for a dedicated "Examples" directory or documentation page if it's extensive. The "Quick Start" should cover the most common, simple use case.)*
 
-*   **High Fidelity**: `curl` templates ensure tests accurately mirror real-world API calls, vital for complex requests (e.g., intricate JSON payloads, function calling).
-*   **Prevent Regressions**: Catch API behavior changes and prompt-related issues early in the development cycle.
-*   **Developer-Friendly DSL**: An intuitive and expressive Kotlin-based DSL for defining test sets and individual test cases.
-*   **Flexible & Rich Metrics**: Go beyond simple pass/fail. Define custom, multi-faceted evaluation logic to score responses based on various criteria and capture detailed output.
-*   **Prompt Optimization**: Built-in support for systematically finding better-performing prompt variations.
+## Advanced: Custom Executors & Resolvers
+For specialized scenarios, Skroll allows you to provide your own implementations:
+*   **`CurlExecutor`**: Define how `curl` commands are actually executed. Useful for mocking, custom logging, or integrating with specific environments.
+*   **`TemplateResolver`**: Customize how placeholders in `commandTemplate` are resolved.
 
-## Usage Example
-
-Here's a basic example of how to define and run a `SkrollSet`. This example uses a `DummyCurlExecutor` for self-contained execution without hitting a real API. In a real test, you'd typically use the default `DefaultCurlExecutor`.
-
-```kotlin
-import io.github.takahirom.skroll.* // Import necessary Skroll classes
-import kotlin.time.Duration.Companion.seconds
-
-// Dummy executor for this example
-class DummyCurlExecutor : CurlExecutor {
-    override fun execute(command: String, options: CurlExecutionOptions): ApiResponse {
-        println("  [DummyCurlExecutor] Would execute: $command")
-        val body = when {
-            command.contains("Capital of France") -> "{\"answer\":\"Paris is the capital!\"}"
-            command.contains("17+25") -> "{\"answer\":\"The sum is 42.\"}"
-            else -> "{\"message\":\"Dummy response\"}"
-        }
-        return ApiResponse(statusCode = 200, body = body)
-    }
-}
-
-fun main() {
-    val faqSet = skrollSet("FAQ Bot Tests") {
-        defaultParameters {
-            listOf(
-                Parameter("BASE_URL", "https://api.example.com/test-faq"),
-                Parameter("COMMON_SYSTEM_PROMPT", "You are a helpful FAQ bot.")
-            )
-        }
-
-        skroll("Capital City Question") {
-            commandTemplate = """
-                curl {BASE_URL}/query \
-                -H "Content-Type: application/json" \
-                -d '{"question":"Capital of France?", "system_prompt":"{COMMON_SYSTEM_PROMPT}"}'
-            """.trimIndent()
-
-            metrics { response ->
-                val isCorrect = response.body.contains("Paris", ignoreCase = true)
-                EvaluationOutput(
-                    primaryScore = if (isCorrect) 1.0 else 0.1,
-                    details = mapOf("body_preview" to response.body.take(50))
-                )
-            }
-            curlOptions { timeout = 10.seconds }
-        }
-
-        skroll("Simple Math Question") {
-            commandTemplate = "curl {BASE_URL}/calculate -d '{\"q\":\"17+25?\", \"prompt\":\"{COMMON_SYSTEM_PROMPT}\"}'"
-            metrics { response ->
-                EvaluationOutput(
-                    primaryScore = if (response.body.contains("42")) 1.0 else 0.2,
-                    details = mapOf("body_preview" to response.body.take(50))
-                )
-            }
-        }
-    }
-
-    // Execute using the DummyCurlExecutor for this example
-    // In a real test, you might just call faqSet.executeAllWith() to use the DefaultCurlExecutor
-    val executor = SkrollSetExecutor(curlExecutor = DummyCurlExecutor())
-    val results: List = faqSet.executeAllWith(executor)
-
-    println("\n--- Test Results ---")
-    results.forEach { result ->
-        println("Test: ${result.definitionName}")
-        println("  Score: ${result.evaluation?.primaryScore}")
-        println("  Successful (>=0.9): ${result.isSuccessful(0.9)}")
-        result.evaluation?.details?.forEach { (k, v) -> println("    $k: $v") }
-        if (result.error != null) {
-            println("  Error: ${result.error.localizedMessage}")
-        }
-        println("---")
-    }
-
-    // Example of checking results (e.g., in a JUnit test)
-    // import com.google.common.truth.Truth.assertThat
-    // assertThat(results.all { it.isSuccessful(0.9) }).isTrue()
-}
-```
-
-This example demonstrates defining a `skrollSet` with default parameters, individual `skroll`s with command templates and metrics, and then executing them. You would typically integrate these executions into your preferred testing framework (like JUnit 5) and use assertion libraries (like Truth or AssertK) to verify the `SkrollRunResult`s.
+Provide these via a custom `SkrollSetExecutor` when calling `executeAllWith(customExecutor)`.

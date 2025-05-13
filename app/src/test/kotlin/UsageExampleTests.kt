@@ -9,6 +9,34 @@ import org.junit.jupiter.api.Test
 
 @Tag("skroll-examples")
 class UsageExampleTests {
+  @Test
+  @DisplayName("Real dummy API test")
+  fun realDummyApiTest() = runBlocking<Unit> {
+    val skrollSet = skrollSet("Dummy API Test") {
+      defaultParameters {
+        listOf(
+          Parameter("BASE_URL", "https://jsonplaceholder.typicode.com"),
+        )
+      }
+      skroll("Fetch Todo") {
+        commandTemplate = "curl {BASE_URL}/todos/1"
+        passFailMetrics { response ->
+          assertThat(response.statusCode).isEqualTo(200)
+          assertThat(response.body).contains("delectus aut autem")
+        }
+      }
+    }
+    skrollSet.executeAll().forEach { result ->
+      println(
+        "Test: ${result.definitionName}, Score: ${result.evaluation?.primaryScore}, Success: ${
+          result.isSuccessful(
+            0.9
+          )
+        }"
+      )
+      assertThat(result.isSuccessful(threshold = 0.9)).isTrue()
+    }
+  }
 
   private val testApiKey = System.getenv("SKROLL_TEST_API_KEY") ?: "dummy_key"
   private val testApiBaseUrl = System.getenv("SKROLL_TEST_API_URL") ?: "https://refactored-api.skroll.test"
@@ -48,7 +76,7 @@ class UsageExampleTests {
     val executor = SkrollSetExecutor(
       apiExecutor = DummyApiExecutor(),
     ) // Uses DefaultCurlExecutor and SimpleTemplateResolver by default
-    val results: List<SkrollRunResult> = faqSet.executeAllWith(executor) // Use extension function
+    val results: List<SkrollRunResult> = faqSet.executeAll(executor) // Use extension function
 
     assertThat(results).hasSize(2)
     results.forEach { result ->

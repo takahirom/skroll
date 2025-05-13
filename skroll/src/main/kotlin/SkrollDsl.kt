@@ -90,6 +90,29 @@ class CurlSkrollBuilder internal constructor(private val name: String) {
         this.metricsFunction = block
     }
 
+    fun passFailMetrics(block: (ApiResponse) -> Unit){
+        this.metricsFunction = { response ->
+            var exception: Exception? = null
+            val score = try {
+                block(response)
+                1.0
+            } catch (e: Exception) {
+                exception = e
+                0.0
+            }
+            EvaluationOutput(
+                primaryScore = score,
+                details = mapOf(
+                    "status_code" to response.statusCode,
+                    "pass_fail_metrics_used" to true,
+                    "body_preview_pass_fail" to response.body.take(30),
+                    "exception" to (exception?.message ?: ""),
+                    "exception_stack_trace" to (exception?.stackTraceToString() ?: "")
+                )
+            )
+        }
+    }
+
     /**
      * Configures [CurlExecutionOptions] for this specific skroll definition.
      * These options will be used when executing the curl command for this skroll.
@@ -129,7 +152,7 @@ class CurlSkrollBuilder internal constructor(private val name: String) {
                 details = mapOf(
                     "status_code" to response.statusCode,
                     "default_metric_used" to true,
-                    "body_preview_default" to response.bodyByteArray.take(30)
+                    "body_preview_default" to response.body.take(30)
                 )
             )
         }
@@ -212,7 +235,7 @@ fun SkrollSet<CurlApiExecutor.Input>.skroll(
  * @param executor The [SkrollSetExecutor] instance to use for execution.
  * @return A list of [SkrollRunResult].
  */
-suspend fun <API_INPUT>SkrollSet<API_INPUT>.executeAllWith(executor: SkrollSetExecutor<API_INPUT> = SkrollSetExecutor<API_INPUT>()): List<SkrollRunResult> {
+suspend fun <API_INPUT>SkrollSet<API_INPUT>.executeAll(executor: SkrollSetExecutor<API_INPUT> = SkrollSetExecutor<API_INPUT>()): List<SkrollRunResult> {
     return executor.executeAll(this)
 }
 
