@@ -130,25 +130,13 @@ class OpenAIChatCompletionTests {
 
 ## Installation (Comming Soon)
 
-**Gradle (Kotlin DSL):**
+**Gradle:**
 ```kotlin
 // build.gradle.kts
 dependencies {
-    testImplementation("io.github.takahirom.skroll:skroll:")
+    testImplementation("io.github.takahirom.skroll:skroll:[latest-version]")
 }
 ```
-
-**Maven:**
-```xml
-
-
-    io.github.takahirom.skroll
-    skroll
-    latest_version
-    test
-
-```
-Replace `` with the actual latest version of Skroll.
 
 ## Core Concepts & DSL
 
