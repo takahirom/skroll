@@ -28,7 +28,7 @@ class AveragePrimaryScoreEvaluator : SkrollSetEvaluator {
 /**
  * Interface for a parameter optimization strategy.
  */
-interface ParameterOptimizer<CONFIG> {
+interface ParameterOptimizer<CONFIG, API_INPUT> {
     /**
      * Optimizes a specific parameter within a [SkrollSet].
      *
@@ -41,11 +41,11 @@ interface ParameterOptimizer<CONFIG> {
      * @return A [PromptOptimizationResult].
      */
     suspend fun optimize(
-        skrollSet: SkrollSet,
+        skrollSet: SkrollSet<API_INPUT>,
         parameterKeyToOptimize: String,
         initialValue: String,
         evaluator: SkrollSetEvaluator,
-        skrollSetExecutor: SkrollSetExecutor, // Optimizer needs to run executions
+        skrollSetExecutor: SkrollSetExecutor<API_INPUT>, // Optimizer needs to run executions
         optimizationConfig: CONFIG
     ): PromptOptimizationResult
 }
@@ -54,7 +54,7 @@ interface ParameterOptimizer<CONFIG> {
  * A simple parameter optimizer implementation.
  * This is a placeholder for more sophisticated strategies (e.g., COPRO-like).
  */
-class SimpleParameterOptimizer : ParameterOptimizer<SimpleParameterOptimizer.OptimizationConfig> {
+class SimpleParameterOptimizer<API_INPUT> : ParameterOptimizer<SimpleParameterOptimizer.OptimizationConfig, API_INPUT> {
 
     /**
      * Configuration for the prompt optimization process.
@@ -65,11 +65,11 @@ class SimpleParameterOptimizer : ParameterOptimizer<SimpleParameterOptimizer.Opt
     )
 
     override suspend fun optimize(
-        skrollSet: SkrollSet,
+        skrollSet: SkrollSet<API_INPUT>,
         parameterKeyToOptimize: String,
         initialValue: String,
         evaluator: SkrollSetEvaluator,
-        skrollSetExecutor: SkrollSetExecutor,
+        skrollSetExecutor: SkrollSetExecutor<API_INPUT>,
         optimizationConfig: OptimizationConfig
     ): PromptOptimizationResult {
         println("  [SimpleParameterOptimizer] Optimizing '$parameterKeyToOptimize', initial: \"$initialValue\", max iterations: ${optimizationConfig.maxIterations}")
@@ -115,7 +115,7 @@ class SimpleParameterOptimizer : ParameterOptimizer<SimpleParameterOptimizer.Opt
 
             // Create a temporary SkrollSet with the modified default parameter
             // This is a bit verbose; a helper to "execute SkrollSet with overridden default param" would be better.
-            val tempSkrollSet = SkrollSet(skrollSet.description).apply {
+            val tempSkrollSet = SkrollSet<API_INPUT>(skrollSet.description).apply {
                 defaultParameters { tempDefaultParams }
                 skrollSet.skrolls.forEach { addSkroll(it) } // Re-add definitions
             }

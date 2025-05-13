@@ -1,5 +1,6 @@
 package io.github.takahirom.skroll
 
+import io.github.takahirom.skroll.CurlApiExecutor.Input
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -10,36 +11,41 @@ import java.util.concurrent.TimeUnit
 /**
  * Interface for executing a curl command.
  */
-interface CurlExecutor {
+interface ApiExecutor<API_INPUT> {
     /**
      * Executes the given curl command.
-     * @param command The fully resolved curl command string to execute.
+     * @param input The fully resolved curl command string to execute.
      * @param options Options for executing the curl command.
      * @return The ApiResponse from the command execution.
      * @throws Exception if the command execution fails at a low level.
      */
-    suspend fun execute(command: String, options: CurlExecutionOptions): ApiResponse
+    suspend fun execute(input: API_INPUT): ApiResponse
 }
 
 /**
- * Default implementation of [CurlExecutor] that executes curl commands
+ * Default implementation of [ApiExecutor] that executes curl commands
  * as system processes.
  * It attempts to capture status code, headers, and body from stdout.
  */
-class DefaultCurlExecutor(private val coroutineDispatcher: CoroutineDispatcher = Dispatchers.IO) : CurlExecutor {
+class CurlApiExecutor(private val coroutineDispatcher: CoroutineDispatcher = Dispatchers.IO) : ApiExecutor<Input> {
+
+    class Input(
+        val command: String,
+        val options: CurlExecutionOptions
+    )
 
     /**
      * Executes a given curl command string.
      * This version attempts to capture status code, headers, and body.
      * It uses `curl -s -i -w "\nCURL_CUSTOM_HTTP_STATUS_CODE:%{http_code}"` to get all info in stdout.
      *
-     * @param command The complete curl command string to execute.
+     * @param input The complete curl command string to execute.
      * @param options Options for the command execution.
      * @return An [ApiResponse] containing the status code, body, and headers.
      */
-    override suspend fun execute(command: String, options: CurlExecutionOptions): ApiResponse {
+    override suspend fun execute(input: Input): ApiResponse {
         return withContext(coroutineDispatcher) {
-            executeCurlCommand(command, options)
+            executeCurlCommand(input.command, input.options)
         }
     }
 
@@ -57,7 +63,7 @@ class DefaultCurlExecutor(private val coroutineDispatcher: CoroutineDispatcher =
             processBuilder.start()
         } catch (e: Exception) {
             // Failed to start the process (e.g., curl not found)
-            return ApiResponse(-1, "Failed to start curl process: ${e.message}", emptyMap())
+            return ApiResponse(-1, "Failed to start curl process: ${e.message}".toByteArray(), emptyMap())
         }
 
 
@@ -86,13 +92,13 @@ class DefaultCurlExecutor(private val coroutineDispatcher: CoroutineDispatcher =
         } catch (e: InterruptedException) {
             Thread.currentThread().interrupt() // Restore interruption status
             process.destroyForcibly()
-            return ApiResponse(-1, "Curl command timed out (interrupted) after ${options.timeout.inWholeSeconds}s. Stderr: $errorOutput", emptyMap())
+            return ApiResponse(-1, "Curl command timed out (interrupted) after ${options.timeout.inWholeSeconds}s. Stderr: $errorOutput".toByteArray(), emptyMap())
         }
 
 
         if (!exited) {
             process.destroyForcibly()
-            return ApiResponse(-1, "Curl command timed out after ${options.timeout.inWholeSeconds}s. Stderr: $errorOutput", emptyMap())
+            return ApiResponse(-1, "Curl command timed out after ${options.timeout.inWholeSeconds}s. Stderr: $errorOutput".toByteArray(), emptyMap())
         }
 
         // Check curl's own exit code. A non-zero exit code often indicates a curl-specific error
@@ -105,7 +111,7 @@ class DefaultCurlExecutor(private val coroutineDispatcher: CoroutineDispatcher =
             return ApiResponse(
                 // If parseCurlOutput found an HTTP status, use it, otherwise indicate curl error with -1 or similar.
                 statusCode = if (partiallyParsedResponse.statusCode != -1) partiallyParsedResponse.statusCode else -process.exitValue(), // Or a specific negative code
-                body = if (partiallyParsedResponse.body.isNotBlank()) partiallyParsedResponse.body else errorOutput, // Prioritize error output if body is empty
+                bodyByteArray = if (partiallyParsedResponse.bodyByteArray.isNotEmpty()) partiallyParsedResponse.bodyByteArray else errorOutput.toByteArray(), // Prioritize error output if body is empty
                 headers = partiallyParsedResponse.headers
             )
         }
@@ -172,6 +178,6 @@ class DefaultCurlExecutor(private val coroutineDispatcher: CoroutineDispatcher =
                 bodyLines.add(line)
             }
         }
-        return ApiResponse(statusCode, bodyLines.joinToString("\n"), headers.toMap())
+        return ApiResponse(statusCode, bodyLines.joinToString("\n").toByteArray(), headers.toMap())
     }
 }

@@ -13,14 +13,18 @@ data class Parameter(val key: String, val value: String)
 /**
  * Represents the response from an API call (e.g., a curl command execution).
  * @property statusCode The HTTP status code of the response.
- * @property body The body of the response as a string.
+ * @property bodyByteArray The body of the response as a string.
  * @property headers The headers of the response.
  */
 data class ApiResponse(
   val statusCode: Int,
-  val body: String,
+  val bodyByteArray: ByteArray,
   val headers: Map<String, List<String>> = emptyMap()
-)
+) {
+  val body by lazy {
+    String(bodyByteArray)
+  }
+}
 
 /**
  * Represents the output of a metrics evaluation for a skroll execution.

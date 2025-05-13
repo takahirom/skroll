@@ -3,7 +3,6 @@ package io.github.takahirom.skroll.example
 import com.google.common.truth.Truth.assertThat
 import io.github.takahirom.skroll.* // Import all skroll classes
 import kotlinx.coroutines.runBlocking
-import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
@@ -47,7 +46,7 @@ class UsageExampleTests {
 
     // Create an executor instance (can be configured with different CurlExecutor or TemplateResolver)
     val executor = SkrollSetExecutor(
-      curlExecutor = DummyCurlExecutor(),
+      apiExecutor = DummyApiExecutor(),
     ) // Uses DefaultCurlExecutor and SimpleTemplateResolver by default
     val results: List<SkrollRunResult> = faqSet.executeAllWith(executor) // Use extension function
 
@@ -66,10 +65,9 @@ class UsageExampleTests {
 
   @Test
   @DisplayName("Optimize COMMON_SYSTEM_PROMPT for FAQs (refactored)")
-  @Tag("optimization-refactored-example")
-  @Disabled("Conceptual test for refactored optimization API")
+  @Tag("optimization-example")
   fun optimizeFaqSystemPromptRefactored() = runBlocking<Unit> {
-    val faqSetForOptimization = skrollSet("FAQ Prompt Optimization - Refactored") {
+    val faqSetForOptimization = skrollSet("FAQ Prompt Optimization") {
       defaultParameters {
         listOf(
           Parameter("BASE_URL", testApiBaseUrl),
@@ -92,6 +90,7 @@ class UsageExampleTests {
     val optimizationResult = faqSetForOptimization.optimizeParameterWithSimpleOptimizer(
       parameterKeyToOptimize = "COMMON_SYSTEM_PROMPT",
       initialValue = "Tell me the answer.",
+      skrollSetExecutor = SkrollSetExecutor(apiExecutor = DummyApiExecutor()),
       // Default evaluator (AveragePrimaryScoreEvaluator) and optimizer (SimpleParameterOptimizer) will be used
       // Can also pass custom instances:
       // evaluator = MyCustomEvaluator(),
@@ -113,8 +112,10 @@ class UsageExampleTests {
  * A dummy implementation of CurlExecutor for demonstration and testing purposes.
  * In a real scenario, this would use ProcessBuilder or a similar mechanism to run curl.
  */
-class DummyCurlExecutor : CurlExecutor {
-  override suspend fun execute(command: String, options: CurlExecutionOptions): ApiResponse {
+class DummyApiExecutor : ApiExecutor<CurlApiExecutor.Input> {
+  override suspend fun execute(input: CurlApiExecutor.Input): ApiResponse {
+    val command = input.command
+    val options = input.options
     println("  [DummyCurlExecutor] Executing: $command (Timeout: ${options.timeout}s, Redirects: ${options.followRedirects}, Insecure: ${options.insecure})")
     // Simulate a successful API call
     val simulatedStatusCode = if (command.contains("error_case")) 400 else 200
@@ -134,7 +135,7 @@ class DummyCurlExecutor : CurlExecutor {
     }
     return ApiResponse(
       statusCode = simulatedStatusCode,
-      body = simulatedBody,
+      bodyByteArray = simulatedBody.toByteArray(),
       headers = mapOf("Content-Type" to listOf("application/json"), "X-Executed-By" to listOf("DummyCurlExecutor"))
     )
   }
