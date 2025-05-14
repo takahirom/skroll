@@ -160,7 +160,7 @@ Defines an individual test case.
 *   **`commandTemplate = "curl command with {PLACEHOLDERS}"`**:
     The `curl` command string. Placeholders are resolved from parameters.
     ```kotlin
-    commandTemplate = "curl {BASE_URL}/chat -d '{\"query\":\"{USER_INPUT}\"}'"
+    commandTemplate = "curl {{BASE_URL}}/chat -d '{\"query\":\"{USER_INPUT}\"}'"
     ```
 *   **`parameters { listOf(Parameter("KEY", "VALUE")) }`**: (Optional)
     Define parameters specific to this `skroll`, overriding or adding to `defaultParameters`.

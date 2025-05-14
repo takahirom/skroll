@@ -19,7 +19,7 @@ class UsageExampleTests {
         )
       }
       skroll("Fetch Todo") {
-        commandTemplate = "curl {BASE_URL}/todos/1"
+        commandTemplate = "curl {{BASE_URL}}/todos/1"
         passFailMetrics { response ->
           assertThat(response.statusCode).isEqualTo(200)
           assertThat(response.body).contains("delectus aut autem")
@@ -55,7 +55,7 @@ class UsageExampleTests {
 
       skroll("Capital City Question") {
         commandTemplate =
-          "curl {BASE_URL}/faq -d '{\"q\":\"Capital of France?\", \"prompt\":\"{COMMON_SYSTEM_PROMPT}\"}'"
+          "curl {{BASE_URL}}/faq -d '{\"q\":\"Capital of France?\", \"prompt\":\"{{COMMON_SYSTEM_PROMPT}}\"}'"
         metrics { response ->
           EvaluationOutput(
             if (response.body.contains("Paris", ignoreCase = true)) 1.0 else 0.1,
@@ -65,7 +65,7 @@ class UsageExampleTests {
       }
 
       skroll("Simple Math Question") {
-        commandTemplate = "curl {BASE_URL}/calculate -d '{\"q\":\"17+25?\", \"prompt\":\"{COMMON_SYSTEM_PROMPT}\"}'"
+        commandTemplate = "curl {{BASE_URL}}/calculate -d '{\"q\":\"17+25?\", \"prompt\":\"{{COMMON_SYSTEM_PROMPT}}\"}'"
         metrics { response ->
           EvaluationOutput(if (response.body.contains("42")) 1.0 else 0.2, mapOf("body" to response.body.take(100)))
         }
@@ -105,11 +105,11 @@ class UsageExampleTests {
       }
       skroll("Capital City Question (for opt)") {
         commandTemplate =
-          "curl {BASE_URL}/faq -d '{\"q\":\"Capital of France?\", \"prompt\":\"{COMMON_SYSTEM_PROMPT}\"}'"
+          "curl {{BASE_URL}}/faq -d '{\"q\":\"Capital of France?\", \"prompt\":\"{{COMMON_SYSTEM_PROMPT}}\"}'"
         metrics { response -> EvaluationOutput(if (response.body.contains("Paris", ignoreCase = true)) 1.0 else 0.1) }
       }
       skroll("Math Question (for opt)") {
-        commandTemplate = "curl {BASE_URL}/faq -d '{\"q\":\"17+25?\", \"prompt\":\"{COMMON_SYSTEM_PROMPT}\"}'"
+        commandTemplate = "curl {{BASE_URL}}/faq -d '{\"q\":\"17+25?\", \"prompt\":\"{{COMMON_SYSTEM_PROMPT}}\"}'"
         metrics { response -> EvaluationOutput(if (response.body.contains("42")) 1.0 else 0.2) }
       }
     }

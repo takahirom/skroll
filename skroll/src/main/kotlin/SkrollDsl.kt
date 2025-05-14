@@ -45,6 +45,9 @@ data class CurlSkroll(
 class CurlSkrollBuilder internal constructor(private val name: String) {
     var commandTemplate: String = ""
         set(value) {
+            if(value.contains("Content-Length")) {
+                println("Warning: An incorrect Content-Length header value may cause issues, such as JSON parse errors, when executing curl commands.")
+            }
             field = value.trimIndent() // Automatically trim indent for multi-line strings
         }
 
