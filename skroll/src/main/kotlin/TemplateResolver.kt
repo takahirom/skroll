@@ -22,7 +22,7 @@ class SimpleTemplateResolver : TemplateResolver {
         parameters.forEach { (key, value) ->
             // Basic placeholder replacement.
             // Consider proper escaping for shell commands, JSON, etc., in a real implementation.
-            resolvedCommand = resolvedCommand.replace("{$key}", value)
+            resolvedCommand = resolvedCommand.replace("{{$key}}", value)
         }
         return resolvedCommand
     }
